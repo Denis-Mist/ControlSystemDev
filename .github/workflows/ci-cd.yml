@@ -1,12 +1,11 @@
-name: Validate changed C# and JSON files
+name: Simple Build + JSON check (last commit)
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  validate-changed:
-    name: Validate changed .cs and .json files (last commit)
+  build-and-validate:
     runs-on: ubuntu-latest
 
     env:
@@ -14,7 +13,7 @@ jobs:
       SHA: ${{ github.sha }}
 
     steps:
-    - name: Checkout repository (full history)
+    - name: Checkout (full history for git diff)
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -24,152 +23,77 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    - name: Show which commit range we will check
-      run: |
-        echo "BEFORE = $BEFORE"
-        echo "SHA    = $SHA"
-
-    - name: Get list of files changed in the last push
-      id: changed_files
+    - name: Get changed files in last push
+      id: changed
       run: |
         set -euo pipefail
 
-        # Если BEFORE равен all-zero (первый пуш), используем git show, иначе git diff
         if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-          echo "First push detected (no parent). Listing files from the commit $SHA"
-          changed=$(git show --name-only --pretty="" "$SHA" | sed '/^$/d')
+          echo "First push (no parent). Listing files from commit $SHA"
+          files=$(git show --name-only --pretty="" "$SHA" | sed '/^$/d')
         else
-          changed=$(git diff --name-only "$BEFORE" "$SHA" || true)
+          files=$(git diff --name-only "$BEFORE" "$SHA" || true)
         fi
 
-        # Удалим пустые строки и выведем
-        changed="$(echo "$changed" | sed '/^$/d' || true)"
-        echo "raw_changed<<EOF" >> $GITHUB_OUTPUT
-        echo "$changed" >> $GITHUB_OUTPUT
+        files="$(echo "$files" | sed '/^$/d' || true)"
+        echo "files<<EOF" >> $GITHUB_OUTPUT
+        echo "$files" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
-    - name: Validate JSON files (only changed ones)
-      if: always()
+    - name: Validate changed JSON files (if any)
       run: |
         set -euo pipefail
-        changed="${{ steps.changed_files.outputs.raw_changed }}"
+        changed="${{ steps.changed.outputs.files }}"
 
-        # Если нет изменений — выходим нормально
         if [ -z "$changed" ]; then
-          echo "No changed files found in last commit. Skipping JSON & C# checks."
+          echo "No changed files in last commit. Skipping JSON validation."
           exit 0
         fi
 
-        echo "Changed files:"
-        echo "$changed"
-
-        # Найдём все изменённые json
-        echo "$changed" | grep -E '\.json$' || true
-        jsons=$(echo "$changed" | grep -E '\.json$' || true)
-
-        if [ -n "$jsons" ]; then
-          echo "Validating changed JSON files..."
-          echo "$jsons" | while read -r json_file; do
-            # пропуск пустых строк
-            [ -z "$json_file" ] && continue
-            if [ ! -f "$json_file" ]; then
-              echo "⚠️  File '$json_file' not exists in workspace (skipping)"
-              continue
-            fi
-            echo "Validating $json_file"
-            if python -m json.tool "$json_file" > /dev/null 2>&1; then
-              echo "✅ $json_file is valid JSON"
-            else
-              echo "❌ $json_file contains invalid JSON"
-              # вывести ошибку парсинга
-              python -m json.tool "$json_file" 2>&1 || true
-              exit 1
-            fi
-          done
-        else
-          echo "No changed JSON files to validate."
-        fi
-
-    - name: Validate changed C# files by building their projects
-      if: always()
-      run: |
-        set -euo pipefail
-        changed="${{ steps.changed_files.outputs.raw_changed }}"
-
-        # Найдём изменённые .cs файлы
-        css=$(echo "$changed" | grep -E '\.cs$' || true)
-
-        if [ -z "$css" ]; then
-          echo "No changed C# files in the last commit. Skipping .NET build checks."
+        jsons=$(printf "%s\n" "$changed" | grep -E '\.json$' || true)
+        if [ -z "$jsons" ]; then
+          echo "No JSON files changed in the last commit."
           exit 0
         fi
 
-        echo "Changed C# files:"
-        echo "$css"
-
-        declare -A projects_map
-
-        # Для каждого изменённого .cs ищем ближайший .csproj вверх по папкам
-        while read -r csfile; do
-          [ -z "$csfile" ] && continue
-          if [ ! -f "$csfile" ]; then
-            echo "⚠️  C# file '$csfile' not found in workspace (skipping)"
+        echo "Validating JSON files from last commit:"
+        printf "%s\n" "$jsons"
+        while IFS= read -r jf; do
+          [ -z "$jf" ] && continue
+          if [ ! -f "$jf" ]; then
+            echo "⚠️  $jf not found in workspace (skipping)"
             continue
           fi
-          dir=$(dirname "$csfile")
-          found_proj=""
-          while [ "$dir" != "." ] && [ -n "$dir" ]; do
-            matches=( "$dir"/*.csproj )
-            if [ -f "${matches[0]}" ]; then
-              # берём первый csproj в этой директории
-              found_proj="${matches[0]}"
-              break
-            fi
-            dir=$(dirname "$dir")
-            # если дошли до корня репозитория
-            if [ "$dir" = "/" ] || [ "$dir" = "." ]; then
-              break
-            fi
-          done
-
-          if [ -z "$found_proj" ]; then
-            # как fallback — искать в корне репы
-            root_matches=( ./*.csproj )
-            if [ -f "${root_matches[0]}" ]; then
-              found_proj="${root_matches[0]}"
-            fi
-          fi
-
-          if [ -n "$found_proj" ]; then
-            echo "File '$csfile' belongs to project: $found_proj"
-            projects_map["$found_proj"]=1
+          echo "Checking $jf"
+          if python -m json.tool "$jf" > /dev/null 2>&1; then
+            echo "✅ $jf is valid"
           else
-            echo "⚠️  No .csproj found for '$csfile' — cannot compile standalone .cs file. Please ensure a project exists. Skipping."
+            echo "❌ $jf contains invalid JSON"
+            python -m json.tool "$jf" 2>&1 || true
+            exit 1
           fi
-        done <<< "$css"
+        done <<< "$jsons"
 
-        # Если нет найденных проектов — выходим нормально (либо можно сделать fail if desired)
-        if [ ${#projects_map[@]} -eq 0 ]; then
-          echo "No projects found for changed C# files. Nothing to build."
+    - name: Build solution or project
+      run: |
+        set -euo pipefail
+        echo "Looking for a solution (.sln) or project (.csproj) to build..."
+
+        sln=$(find . -type f -name "*.sln" | head -n 1 || true)
+        if [ -n "$sln" ]; then
+          echo "Found solution: $sln"
+          dotnet build "$sln" --verbosity minimal
+          echo "✅ Solution build succeeded"
           exit 0
         fi
 
-        # Собираем уникальные проекты
-        echo "Projects to build:"
-        for proj in "${!projects_map[@]}"; do
-          echo " - $proj"
-        done
+        csproj=$(find . -type f -name "*.csproj" | head -n 1 || true)
+        if [ -n "$csproj" ]; then
+          echo "No .sln found. Building project: $csproj"
+          dotnet build "$csproj" --verbosity minimal
+          echo "✅ Project build succeeded"
+          exit 0
+        fi
 
-        # Build each unique project (no restore)
-        for proj in "${!projects_map[@]}"; do
-          echo "Building $proj ..."
-          dotnet build "$proj" --no-restore --verbosity minimal || {
-            echo "❌ Build failed for $proj"
-            exit 1
-          }
-          echo "✅ Build succeeded for $proj"
-        done
-
-    # (опционально) можно добавить этап восстановления пакетов заранее, если сборка требует restore
-    # - name: dotnet restore (optional)
-    #   run: dotnet restore PATH_TO_SOLUTION_OR_PROJECT
+        echo "No .sln or .csproj found in repository — nothing to build."
+        exit 0
