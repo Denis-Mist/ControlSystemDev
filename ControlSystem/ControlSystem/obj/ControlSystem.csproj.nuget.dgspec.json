@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Фрейм\\ControlSystem\\ControlSystem\\ControlSystem\\ControlSystem.csproj": {}
+    "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Dev\\ControlSystemDev\\ControlSystem\\ControlSystem\\ControlSystem.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Фрейм\\ControlSystem\\ControlSystem\\ControlSystem\\ControlSystem.csproj": {
+    "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Dev\\ControlSystemDev\\ControlSystem\\ControlSystem\\ControlSystem.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Фрейм\\ControlSystem\\ControlSystem\\ControlSystem\\ControlSystem.csproj",
+        "projectUniqueName": "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Dev\\ControlSystemDev\\ControlSystem\\ControlSystem\\ControlSystem.csproj",
         "projectName": "ControlSystem",
-        "projectPath": "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Фрейм\\ControlSystem\\ControlSystem\\ControlSystem\\ControlSystem.csproj",
+        "projectPath": "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Dev\\ControlSystemDev\\ControlSystem\\ControlSystem\\ControlSystem.csproj",
         "packagesPath": "C:\\Users\\Денис\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Фрейм\\ControlSystem\\ControlSystem\\ControlSystem\\obj\\",
+        "outputPath": "C:\\Users\\Денис\\OneDrive\\Desktop\\5_sem\\Dev\\ControlSystemDev\\ControlSystem\\ControlSystem\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
